@@ -1,0 +1,9 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+
+.cache/
+.tmp/*.mp3
+CIMET-12hr-Build-Plan.md
+*.mp3
