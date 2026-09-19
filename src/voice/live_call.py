@@ -5,6 +5,7 @@ import sounddevice as sd
 from scipy.io.wavfile import write
 
 from src.journey.engine import EnergyTurnEngine
+from src.journey.energy import ENERGY_JOURNEY
 from src.voice.audio import play_audio
 from src.voice.stt import STTEngine
 from src.voice.tts import TTSEngine
@@ -37,6 +38,14 @@ def speak(tts, text, output_path):
     play_audio(output_path)
 
 
+def get_question_for_field(field):
+    for section in ENERGY_JOURNEY["sections"]:
+        if field in section["fields"]:
+            return section["script"]
+
+    return None
+
+
 def main():
     stt = STTEngine()
     tts = TTSEngine()
@@ -44,11 +53,7 @@ def main():
 
     collected = {}
 
-    opening = (
-        "Hello, this is the energy support team. "
-        "You recently started comparing energy options but did not complete "
-        "the process. I can help finish it with you. Is now a good time?"
-    )
+    opening = ENERGY_JOURNEY["opening_script"]
 
     print("\nAGENT:", opening)
 
@@ -84,7 +89,50 @@ def main():
             print("ESCALATION:", turn.escalation_reason)
             print("CONFIDENCE:", turn.confidence)
 
-            if turn.response:
+            # Terminal actions use the engine's response.
+            if turn.action in {
+                "complete",
+                "close",
+                "escalate",
+            }:
+                if turn.response:
+                    print("AGENT:", turn.response)
+
+                    speak(
+                        tts,
+                        turn.response,
+                        "agent_response.mp3",
+                    )
+
+                print("\nCALL ENDED")
+                print("FINAL COLLECTED DATA:", collected)
+                break
+
+            # For normal journey progression, use the exact
+            # question defined by the Energy journey.
+            if turn.next_field:
+                next_question = get_question_for_field(
+                    turn.next_field
+                )
+
+                if next_question:
+                    print("AGENT:", next_question)
+
+                    speak(
+                        tts,
+                        next_question,
+                        "agent_question.mp3",
+                    )
+                else:
+                    print("AGENT:", turn.response)
+
+                    speak(
+                        tts,
+                        turn.response,
+                        "agent_response.mp3",
+                    )
+
+            elif turn.response:
                 print("AGENT:", turn.response)
 
                 speak(
@@ -92,15 +140,6 @@ def main():
                     turn.response,
                     "agent_response.mp3",
                 )
-
-            if turn.action in {
-                "complete",
-                "close",
-                "escalate",
-            }:
-                print("\nCALL ENDED")
-                print("FINAL COLLECTED DATA:", collected)
-                break
 
         finally:
             if os.path.exists(audio_path):
